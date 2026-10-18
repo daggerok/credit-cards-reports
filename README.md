@@ -41,13 +41,13 @@ Live: https://daggerok.github.io/credit-cards-reports/
 - `constant`: a field the issuer does not print (Apple Card has no fees)
 - optional parts (Cash Advances, Balance Transfers) count as 0 when the statement has no such line
 
-A new issuer or layout: `bun scripts/extract-text.ts statement.pdf --out /some/dir/outside/the/repo` prints the lines the browser sees; add an entry to `ISSUERS` and a made-up fixture to `src/fixtures.ts`
+A new issuer or layout: `bun scripts/extract-text.ts statement.pdf --out statements/text` writes the lines the browser sees into `statements/` (ignored by git, the guard never lets it into a commit); add an entry to `ISSUERS` and a made-up fixture to `src/fixtures.ts`
 
 ## Statements stay private
 
 The repo is public. A statement or a card number never gets into a commit or the site:
 
-- `*.pdf` and `statements/` are ignored; tests use made-up text in `src/fixtures.ts`
+- `*.pdf` and `statements/` are ignored: keep your PDFs, their extracted text and screenshots in `statements/`; tests use made-up text in `src/fixtures.ts`
 - `bun run check`: exit 1 while any file git would commit is a PDF or holds a card-number-like value (4 groups of digits or 15-16 digits, Luhn-valid); `check-history` does the same over every commit, `check-dist` over the built site
 - git hooks in `.githooks/` (set by `bun install` through `prepare`): `pre-commit` refuses a staged PDF or card number, `pre-push` re-checks the tree and the history; both fail closed without bun. Build, serve and `bun test` stop when the hooks are off (`check-hooks`); CI runs `check` and `check-history` before the tests and the build
 
