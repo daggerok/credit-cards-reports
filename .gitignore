@@ -1,0 +1,10 @@
+.idea/
+.parcel-cache/
+dist/
+node_modules/
+.DS_Store
+
+# statements are private: never in the repo (scripts/check-private.ts and the git hooks enforce it)
+*.pdf
+*.PDF
+statements/

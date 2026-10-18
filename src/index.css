@@ -1,0 +1,147 @@
+/* index.css */
+/**
+ * ============================================================================
+ * Credit Cards Reports - styles (index.css), the fidelity-reports file (Stocks look) without the table filters
+ * ============================================================================
+ * Tailwind CSS v4 (CSS-first), compiled by Parcel through @tailwindcss/postcss
+ * (see "postcss" in package.json). Same setup as daggerok/csv and daggerok/options-desk.
+ *
+ *  - `@import "tailwindcss"`: preflight, theme and the utilities used in index.html and main.tsx.
+ *  - `@custom-variant dark`: class based dark mode (`html.dark`, toggled by the theme init in index.html).
+ *  - `@theme`: the Inter font family.
+ *  - compat layer: Tailwind v3 -> v4 defaults the markup relies on (border color, button cursor).
+ *  - the rest: component styles the app needs on top of the utilities (table, filters, dropdowns,
+ *    tooltip, busy overlay, summary popover).
+ * ============================================================================
+ */
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+}
+
+/* Tailwind v4 changed two defaults the markup was written against: the default border color
+   (was gray-200, now currentColor) and the pointer cursor of buttons. */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+/* Tailwind v4 moved space-x/space-y from margin-top / margin-left on the following siblings to margin-bottom / margin-right on every child but the last.
+   The panels below set their own margin-top (and collapse to 0), so the v3 behaviour is restored for the classes this app uses. */
+.space-y-6 > :not(:last-child) { margin-block-end: 0; }
+.space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.5rem; }
+
+    @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+    .animate-fade-in{animation:fadeIn .3s ease-out}
+
+    /* Busy overlay: covers the table while data loads or a chunk is mounted, swallows wheel/touch/clicks so nobody scrolls half-ready rows */
+    .busy-overlay{position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.6rem;background:rgba(248,250,252,.72);color:#475569;font-size:.75rem;touch-action:none;cursor:default;opacity:0;animation:busyShow .12s linear .15s forwards}
+    @keyframes busyShow{0%{opacity:0;cursor:default}49%{opacity:.5;cursor:default}50%{opacity:.5;cursor:progress}100%{opacity:1;cursor:progress}}
+    .busy-overlay[hidden]{display:none}
+    .busy-spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(100,116,139,.3);border-top-color:#3b82f6;animation:busySpin .8s linear infinite}
+    @keyframes busySpin{to{transform:rotate(360deg)}}
+    .busy-overlay.is-instant{animation-delay:0s}
+    html.dark .busy-overlay{background:rgba(15,23,42,.7);color:#cbd5e1}
+    @media (prefers-reduced-motion:reduce){.busy-spinner{animation-duration:2.4s}}
+
+    /* Themed scrollbars (same slate palette as Amplify / iShares) */
+    .themed-scroll::-webkit-scrollbar{width:10px;height:10px}
+    .themed-scroll::-webkit-scrollbar-track{background:transparent}
+    .themed-scroll::-webkit-scrollbar-thumb{background-color:#cbd5e1;border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+    .themed-scroll::-webkit-scrollbar-thumb:hover{background-color:#94a3b8}
+    .dark .themed-scroll::-webkit-scrollbar-thumb{background-color:#334155}
+    .dark .themed-scroll::-webkit-scrollbar-thumb:hover{background-color:#475569}
+    .themed-scroll::-webkit-scrollbar-corner{background:transparent}
+    .themed-scroll{scrollbar-width:thin;scrollbar-color:#cbd5e1 transparent}
+    .dark .themed-scroll{scrollbar-color:#334155 transparent}
+
+    .selected-row{background:#eff6ff}
+    .dark .selected-row{background:rgba(30,64,175,.22)}
+
+    /* Drag-and-drop zone interaction states (same as daggerok/iShares) */
+    .dz-active {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+    .dark .dz-active {
+      background: #1e293b;
+    }
+    .dz-loaded {
+      border-color: rgba(16, 185, 129, 0.5);
+    }
+    .dz-loaded .dz-label {
+      color: #059669;
+    }
+    .dark .dz-loaded .dz-label {
+      color: #34d399;
+    }
+    .dz-error {
+      border-color: rgba(244, 63, 94, 0.6);
+    }
+    .dz-error .dz-label {
+      color: #e11d48;
+    }
+    .dark .dz-error .dz-label {
+      color: #fb7185;
+    }
+
+    /* Filters bar, filter dropdowns (exchanges, sectors, columns), source badges */
+    .dd-root{position:relative}
+    /* Custom tooltip: one fixed element in <body>, above every other layer of the app */
+    .hub-tip{position:fixed;left:0;top:0;z-index:2147483000;max-width:min(22rem,calc(100vw - 16px));padding:.4rem .6rem;border-radius:.5rem;background:#0f172a;color:#f8fafc;border:1px solid #1e293b;font-size:.75rem;line-height:1.4;font-weight:500;white-space:pre-line;overflow-wrap:anywhere;box-shadow:0 8px 24px rgb(15 23 42 / .28);pointer-events:none;opacity:0;visibility:hidden;transition:opacity .12s ease,visibility 0s .12s}
+    .hub-tip.is-open{opacity:1;visibility:visible;transition:opacity .12s ease}
+    .dark .hub-tip{background:#1e293b;color:#f1f5f9;border-color:#475569;box-shadow:0 8px 24px rgb(0 0 0 / .5)}
+    @media (prefers-reduced-motion:reduce){.hub-tip,.hub-tip.is-open{transition:none}}
+    .dd-trigger{display:inline-flex;align-items:center;gap:.4rem;min-height:2.375rem;max-width:100%;padding:.5rem .75rem;border-radius:.5rem;border:1px solid #e2e8f0;background:#fff;color:#334155;font-size:.875rem;line-height:1.25rem;font-weight:500;cursor:pointer;transition:background-color .15s,border-color .15s,box-shadow .15s,color .15s}
+    .dd-trigger:hover{background:#f8fafc;border-color:#cbd5e1}
+    .dd-trigger:focus{outline:none}
+    .dd-trigger:focus-visible,.dd-trigger[aria-expanded="true"]{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+    .dd-trigger .dd-label{color:#64748b;font-weight:400;flex:none}
+    .dd-trigger .dd-value{font-weight:600;min-width:0;max-width:14rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .dd-trigger .dd-chev{flex:none;color:#94a3b8;transition:transform .18s ease}
+    .dd-trigger[aria-expanded="true"] .dd-chev{transform:rotate(180deg)}
+    .dd-trigger.is-filtered{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+    .dd-trigger.is-filtered:hover{background:#dbeafe}
+    .dd-trigger.is-filtered .dd-label{color:#3b82f6}
+    .dd-trigger.is-filtered .dd-chev{color:#3b82f6}
+    .dd-badge{flex:none;font-size:.7rem;line-height:1;font-weight:600;padding:.2rem .45rem;border-radius:9999px;background:#dbeafe;color:#1d4ed8;border:1px solid #bfdbfe}
+    .dd-badge[hidden]{display:none}
+    .dark .dd-trigger{background:#0f172a;border-color:#334155;color:#e2e8f0}
+    .dark .dd-trigger:hover{background:#1e293b;border-color:#475569}
+    .dark .dd-trigger:focus-visible,.dark .dd-trigger[aria-expanded="true"]{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.3)}
+    .dark .dd-trigger .dd-label{color:#94a3b8}
+    .dark .dd-trigger.is-filtered{background:rgba(30,64,175,.22);border-color:rgba(59,130,246,.45);color:#93c5fd}
+    .dark .dd-trigger.is-filtered:hover{background:rgba(30,64,175,.32)}
+    .dark .dd-trigger.is-filtered .dd-label,.dark .dd-trigger.is-filtered .dd-chev{color:#60a5fa}
+    .dark .dd-badge{background:rgba(59,130,246,.2);color:#93c5fd;border-color:rgba(59,130,246,.4)}
+
+/* ---- reports: spinner inside a tab pill while its report is being built ---- */
+.tab-spin{display:inline-block;width:.8rem;height:.8rem;margin-left:.35rem;vertical-align:-.1rem;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;opacity:.8;animation:busySpin .8s linear infinite}
+.tab-num{font-weight:700}
+.tab-sub{opacity:.75;margin-left:.3rem}
+@media (prefers-reduced-motion:reduce){.tab-spin{animation-duration:2.4s}}
+
+/* ---- credit cards reports: math check badges and the raw data panel ---- */
+.dd-trigger:disabled{opacity:.5;cursor:not-allowed}
+.status-ok{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+.status-bad{background:#fff1f2;color:#be123c;border-color:#fda4af}
+.dark .status-ok{background:rgba(16,185,129,.15);color:#6ee7b7;border-color:rgba(16,185,129,.35)}
+.dark .status-bad{background:rgba(190,18,60,.18);color:#fda4af;border-color:rgba(244,63,94,.5)}
+details.raw > summary{list-style:none;cursor:pointer}
+details.raw > summary::-webkit-details-marker{display:none}
+details.raw > summary .raw-chev{transition:transform .18s ease}
+details.raw[open] > summary .raw-chev{transform:rotate(90deg)}
+#content-scroll{overscroll-behavior:contain}

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Runs on what is about to be committed (the index): a staged PDF or a staged file with a card-number-like value
+# refuses the commit. Fails closed: without bun nothing can be checked, so nothing is committed.
+command -v bun >/dev/null 2>&1 || { echo "pre-commit: bun is not installed, the commit cannot be checked for statements: refused (install bun: https://bun.sh, then bun install)" >&2; exit 1; }
+exec bun scripts/check-private.ts --pre-commit

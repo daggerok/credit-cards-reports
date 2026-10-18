@@ -1,0 +1,5 @@
+#!/bin/sh
+# Last guard before anything leaves this machine: pre-commit does not run for rebase, cherry-pick, merge or
+# commit --no-verify, so the working tree and the whole history are checked again here. Fails closed without bun.
+command -v bun >/dev/null 2>&1 || { echo "pre-push: bun is not installed, the push cannot be checked for statements: refused (install bun: https://bun.sh, then bun install)" >&2; exit 1; }
+bun scripts/check-private.ts --check && exec bun scripts/check-private.ts --check-history

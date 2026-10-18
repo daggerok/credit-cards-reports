@@ -1,0 +1,66 @@
+{
+  "name": "credit-cards-reports",
+  "version": "1.0.0",
+  "description": "Credit card statements (PDF) read in the browser with no AI: balance check, what to pay by when and calendar reminders for Chase, Capital One, Citi, Bank of America, American Express and Apple Card",
+  "source": "src/index.html",
+  "scripts": {
+    "clean": "rimraf -rf dist",
+    "build-github-pages": "npm run build -- --public-url=/credit-cards-reports/",
+    "preserve": "npm run check-hooks && npm run worker",
+    "serve": "parcel --no-cache --no-source-maps --dist-dir ./dist",
+    "prebuild": "npm run clean && npm run check-hooks && npm run check",
+    "build": "parcel build --no-cache --no-source-maps --dist-dir ./dist",
+    "postbuild": "npm run worker && npm run check-dist",
+    "start": "pm2 start 'npm run serve' --name app",
+    "restart": "pm2 restart app",
+    "ps": "pm2 ps",
+    "logs": "pm2 logs",
+    "stop": "pm2 kill",
+    "pretest": "npm run check-hooks",
+    "test": "bun test",
+    "extract": "bun scripts/extract-text.ts",
+    "check": "bun scripts/check-private.ts --check",
+    "check-history": "bun scripts/check-private.ts --check-history",
+    "check-dist": "bun scripts/check-private.ts --check-dist",
+    "check-hooks": "bun scripts/check-private.ts --check-hooks",
+    "prepare": "git config core.hooksPath .githooks || true",
+    "worker": "bun scripts/copy-worker.ts"
+  },
+  "keywords": [
+    "tailwind",
+    "parcel",
+    "react",
+    "pdfjs",
+    "rimraf",
+    "pm2",
+    "bun",
+    "credit-card",
+    "statements",
+    "ics"
+  ],
+  "author": "Maksim Kostromin / GitHub: daggerok",
+  "license": "MIT",
+  "dependencies": {
+    "pdfjs-dist": "6.4.299",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/bun": "1.4.3",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "buffer": "^6.0.3",
+    "parcel": "2.16.4",
+    "pm2": "7.0.4",
+    "process": "^0.11.10",
+    "rimraf": "6.1.3",
+    "tailwindcss": "4.3.3"
+  },
+  "postcss": {
+    "plugins": {
+      "@tailwindcss/postcss": {}
+    }
+  }
+}
