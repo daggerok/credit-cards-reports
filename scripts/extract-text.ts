@@ -1,7 +1,7 @@
 /// <reference types="node" />
 // Prints the text lines of PDF statements the way the browser sees them (for writing a parser of a new issuer):
 //   bun scripts/extract-text.ts a.pdf [b.pdf ...] [--out dir]
-// Statements are private: write the text outside the repo (the default is stdout).
+// Statements are private: write the text into statements/ (ignored by git), e.g. --out statements/text; the default is stdout.
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { documentText } from '../src/pdf-text';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
