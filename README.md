@@ -66,7 +66,7 @@ Layout (same shape as fidelity-reports):
 
 - `src/index.html`, `src/index.css`, `src/main.tsx`, `src/favicon.ico`: the page, React and Tailwind 4 in the fidelity-reports look (Input / Output tabs, file loading, drop on the page)
 - `src/parser.ts`: the issuers and the engine, pure; `src/report.ts`: scenarios and the upcoming list; `src/calendar.ts`: `.ics` and the Google and Outlook links
-- `src/pdf.ts`: pdf.js in the browser; `scripts/copy-worker.ts` copies the prebuilt pdf.js worker into `dist/` (bundled by Parcel it breaks)
+- `src/pdf.ts`: pdf.js in the browser, imported lazily by `main.tsx` with the first file (its own Parcel bundle, so the page loads about 266 kB of script instead of 724 kB); every file is read in one shared pdf.js worker, at most 3 at a time (`src/limit.ts`); `scripts/copy-worker.ts` copies the prebuilt pdf.js worker into `dist/` (bundled by Parcel it breaks)
 - `scripts/check-private.ts`: the guard; `scripts/extract-text.ts`: the text of a PDF for writing a parser
 
 ## License
