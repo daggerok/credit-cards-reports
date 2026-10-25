@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import { addDays, buildIcs, googleUrl, outlookUrl, reminderFor } from './calendar';
 import { FIXTURES } from './fixtures';
-import { parseStatement } from './parser';
+import { parseStatement, verify } from './parser';
 
 const chase = parseStatement('chase.pdf', FIXTURES.chase);
 const reminder = reminderFor(chase, 'balance');
@@ -13,6 +13,20 @@ describe('reminder text', () => {
     expect(reminder.title).toBe('Оплатить $164.00 по карте Chase Freedom Unlimited ·1234 (Due Date: Nov 01, 2026)');
     expect(reminderFor(chase, 'minimum')?.title).toBe('Оплатить $40.00 по карте Chase Freedom Unlimited ·1234 (Due Date: Nov 01, 2026)');
     expect(reminderFor({ ...chase, statementBalance: 0 }, 'balance')).toBeNull();
+  });
+
+  test('an UNVERIFIED statement: a warning in the title and what is wrong in the notes', () => {
+    expect(reminder.details).not.toContain('UNVERIFIED');
+    const diff = parseStatement('chase.pdf', FIXTURES.chase.replace('New Balance  $164.00', 'New Balance  $174.00').replace('New Balance:  $164.00', 'New Balance:  $174.00'));
+    const r1 = reminderFor(diff, 'balance');
+    expect(r1?.title).toBe('⚠ Оплатить $174.00 по карте Chase Freedom Unlimited ·1234 (Due Date: Nov 01, 2026)');
+    expect(r1?.details).toStartWith('⚠ PARSING ERROR / UNVERIFIED: check the amounts and dates in the statement\nDifference (PDF - calculated): $10.00\n\nStatement Balance: $174.00');
+    const noMinimum = { ...chase, minimumPayment: null, verification: verify({ ...chase, minimumPayment: null }) };
+    expect(noMinimum.verification.status).toBe('UNVERIFIED');
+    const r2 = reminderFor(noMinimum, 'minimum');
+    expect(r2?.title).toStartWith('⚠ Оплатить $164.00 по карте');
+    expect(r2?.details).toContain('Not found: Minimum Payment Due\n');
+    expect(r2?.details).toContain('⚠ Minimum Payment Due не найден в PDF');
   });
 
   test('addDays crosses months and years', () => {

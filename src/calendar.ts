@@ -15,13 +15,33 @@ export function addDays(iso: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** "Оплатить $224.57 по карте Chase Freedom Unlimited ·1715 (Due Date: Nov 01, 2026)"; null when nothing is due. */
+/** Starts the title (and the notes) of a reminder built from an UNVERIFIED statement. */
+export const UNVERIFIED_MARK = '⚠ ';
+
+/** What a reminder of an unverified statement says first: the amounts may be wrong, check the PDF. */
+function unverifiedNote(s: Statement): string[] {
+  const v = s.verification;
+  if (v.status === 'VALIDATED') return [];
+  return [
+    `${UNVERIFIED_MARK}PARSING ERROR / UNVERIFIED: check the amounts and dates in the statement`,
+    ...(v.missing.length ? [`Not found: ${v.missing.join(', ')}`] : []),
+    ...(v.diff !== null && v.diff !== 0 ? [`Difference (PDF - calculated): ${formatMoney(v.diff)}`] : []),
+    '',
+  ];
+}
+
+/**
+ * "Оплатить $224.57 по карте Chase Freedom Unlimited ·1715 (Due Date: Nov 01, 2026)", with "⚠ " in front and the
+ * missing fields or the difference in the notes when the statement is UNVERIFIED; null when nothing is due.
+ */
 export function reminderFor(s: Statement, mode: RemindAmount): Reminder | null {
   const amount = reminderAmount(s, mode);
   if (amount === null || !s.dueDate) return null;
   const sc = scenarios(s);
-  const title = `Оплатить ${formatMoney(amount)} по карте ${cardLabel(s)} (Due Date: ${formatDate(s.dueDate)})`;
+  const mark = s.verification.status === 'VALIDATED' ? '' : UNVERIFIED_MARK;
+  const title = `${mark}Оплатить ${formatMoney(amount)} по карте ${cardLabel(s)} (Due Date: ${formatDate(s.dueDate)})`;
   const details = [
+    ...unverifiedNote(s),
     `Statement Balance: ${formatMoney(s.statementBalance)}`,
     `Minimum Payment Due: ${formatMoney(s.minimumPayment)}`,
     `Statement Closing Date: ${formatDate(s.closingDate)}`,
