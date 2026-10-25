@@ -13,7 +13,8 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-const ROOT = join(import.meta.dir, '..');
+// __dirname instead of import.meta: the owner's IDE checks this file with the TypeScript defaults (ES5, commonjs)
+const ROOT = join(__dirname, '..');
 /** Never scanned: the lockfile (hashes) and binaries. */
 const SKIP = /(^|\/)bun\.lock$|\.(ico|png|jpe?g|gif|woff2?)$/i;
 const STATEMENT = /\.pdf$/i;
@@ -33,7 +34,7 @@ export function cardLikeLines(text: string): number[] {
   const re = /(?<![\dA-Za-z.])(?:\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{3,4}|\d{4}[ -]\d{6}[ -]\d{5}|\d{15,16})(?![\dA-Za-z.])/g;
   const lines: number[] = [];
   text.split('\n').forEach((line, i) => {
-    for (const m of line.matchAll(re)) {
+    for (const m of Array.from(line.matchAll(re))) {
       if (luhn(m[0].replace(/\D/g, ''))) { lines.push(i + 1); break; }
     }
   });
@@ -95,7 +96,7 @@ function main(argv: string[]): number {
         for (const line of problems(p, () => git(['show', `${commit}:${p}`]))) found.add(`${commit.slice(0, 7)} ${line}`);
       }
     }
-    return finish([...found], 'history: no statements, no card numbers', 'the history holds private data: do not push it');
+    return finish(Array.from(found), 'history: no statements, no card numbers', 'the history holds private data: do not push it');
   }
   if (argv.includes('--check-dist')) {
     const found = walk(join(ROOT, 'dist')).flatMap(f => problems(relative(ROOT, f), () => readFileSync(f, 'utf8')));
@@ -105,4 +106,4 @@ function main(argv: string[]): number {
   return finish(files.flatMap(p => problems(p, () => readFileSync(join(ROOT, p), 'utf8'))), 'repo: no statements, no card numbers', 'private data in the repo: remove it before committing');
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (require.main === module) process.exit(main(process.argv.slice(2)));

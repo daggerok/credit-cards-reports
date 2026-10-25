@@ -1,3 +1,4 @@
+/// <reference lib="esnext" />
 // PDF -> text lines with pdfjs-dist. The text items of a page are grouped into lines by their baseline
 // (y within half a glyph height) and joined left to right; a wide horizontal gap becomes 2 spaces so a
 // label and its amount stay apart ("New Balance  $1,234.56"). Used by the browser and by scripts/extract-text.ts

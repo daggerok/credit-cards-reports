@@ -1,3 +1,4 @@
+/// <reference lib="esnext" />
 /** Runs at most `n` of the given tasks at a time, the rest wait in order (used to read a few PDFs at once). */
 export function limiter(n: number): <T>(task: () => Promise<T>) => Promise<T> {
   let running = 0;

@@ -1,3 +1,4 @@
+/// <reference lib="esnext" />
 /// <reference path="./pdfjs-min.d.ts" />
 // Browser side of the PDF engine: pdfjs-dist reads the file in its own worker, pdf-text.ts turns it into lines.
 // main.tsx imports this module lazily (await import('./pdf')) so pdf.js stays out of the first page load.

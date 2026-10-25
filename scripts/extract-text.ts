@@ -11,9 +11,15 @@ const args = process.argv.slice(2);
 const outAt = args.indexOf('--out');
 const out = outAt >= 0 ? args.splice(outAt, 2)[1] : '';
 if (out) mkdirSync(out, { recursive: true });
-for (const file of args) {
-  const doc = await getDocument({ data: new Uint8Array(readFileSync(file)), useSystemFonts: true }).promise;
-  const text = await documentText(doc);
-  if (out) writeFileSync(join(out, `${basename(file)}.txt`), text);
-  else console.log(`===== ${file}\n${text}`);
+
+// a main() instead of top-level await: the owner's IDE checks this file with the TypeScript defaults (ES5, commonjs)
+async function main(): Promise<void> {
+  for (const file of args) {
+    const doc = await getDocument({ data: new Uint8Array(readFileSync(file)), useSystemFonts: true }).promise;
+    const text = await documentText(doc);
+    if (out) writeFileSync(join(out, `${basename(file)}.txt`), text);
+    else console.log(`===== ${file}\n${text}`);
+  }
 }
+
+main().catch((err: unknown) => { console.error(err); process.exitCode = 1; });
