@@ -8,15 +8,16 @@ Live: https://daggerok.github.io/credit-cards-reports/
 
 - **Load files** (or drop PDF files on the page): every file is read with pdf.js and parsed right away; more loads add files, a file with the same name is replaced, **Clear** forgets them
 - **Input** tab: one sub tab per file with the text lines the parser saw (line, page, text); the lines a field came from are marked with the field name, **Search lines** filters them
-- **Output** tab: **All** shows the upcoming payments (nearest due date first, past ones greyed, totals of the statement balances and minimums still due) and every report; `1`, `2`, ... show one report each
+- **Output** tab: **All** shows the upcoming payments (statements whose due date was not found first with a red **Due date not found** badge, then the nearest due date first, past ones greyed, totals of the statement balances and minimums still due; an amount not found shows `?` and makes the total `$X + ?`) and every report; `1`, `2`, ... show one report each
 - A report (one per file):
   - Statement Closing Date, Payment Due Date (and how many days are left), Statement Balance, Minimum Payment Due
-  - Сценарий 1, избежать Late Fee: "Чтобы избежать Late Fee, внеси минимум $X.XX до [Due Date]." ("Платеж не требуется, Late Fee не грозит." when the minimum is $0.00)
-  - Сценарий 2, избежать Interest Charges: "Чтобы не платить проценты, внеси полный Statement Balance $Y.YY до [Due Date]." and "Покупки, сделанные после [Statement Closing Date], входят в следующий период и гасить их сейчас не нужно."
-  - Calendar: **Apple Calendar / Outlook / iCal (.ics)** is one all-day event on the due date with alarms at 09:00 3 days and 1 day before; **Google** and **Outlook.com** links cannot carry alarms, so each link is the reminder itself: an event at 09:00 3 days (or 1 day) before the due date. Title: "Оплатить $[amount] по карте [Bank Card ·Last 4] (Due Date: [Date])"
+  - Сценарий 1, избежать Late Fee: "Чтобы избежать Late Fee, внеси минимум $X.XX до [Due Date]." ("Платеж не требуется, Late Fee не грозит." when the minimum is $0.00, "⚠ Minimum Payment Due не найден в PDF: проверь его в выписке и внеси до [Due Date]." when the PDF did not give it)
+  - Сценарий 2, избежать Interest Charges: "Чтобы не платить проценты, внеси полный Statement Balance $Y.YY до [Due Date]." and "Покупки, сделанные после [Statement Closing Date], входят в следующий период и гасить их сейчас не нужно." ("⚠ Statement Balance не найден в PDF: проверь его в выписке и внеси полностью до [Due Date]." when the PDF did not give it; a due date not found reads "Payment Due Date (дата не найдена в PDF)")
+  - A field not found in the PDF is shown in red as "not found in the PDF", never as $0.00 or "nothing to pay"
+  - Calendar: **Apple Calendar / Outlook / iCal (.ics)** is one all-day event on the due date with alarms at 09:00 3 days and 1 day before; **Google** and **Outlook.com** links cannot carry alarms, so each link is the reminder itself: an event at 09:00 3 days (or 1 day) before the due date. Title: "Оплатить $[amount] по карте [Bank Card ·Last 4] (Due Date: [Date])"; a statement that is not VALIDATED gets "⚠ " in front of the title and the fields not found or the difference at the top of the notes. No reminder when the due date or the amount was not found: the report says which field to look up
   - **Parsed raw data & math check**: every field, the parts it sums and the line each one came from, and the check (open by default when it fails)
 - **Remind to pay**: the amount in the reminders, the statement balance (no interest) or the minimum (no Late Fee)
-- **Add all payments to calendar**: one `.ics` with every upcoming payment (due dates already past are left out)
+- **Add all payments to calendar**: one `.ics` with every upcoming payment (due dates already past are left out; statements whose due date or amount was not found are left out and counted in the status line)
 - Nothing leaves the browser and nothing is stored: the files are gone after a reload; only the theme, the main tab and the reminder amount are kept in localStorage
 
 ## Math verification

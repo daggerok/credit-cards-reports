@@ -34,15 +34,22 @@ export function cardLabel(s: Pick<Statement, 'bank' | 'card' | 'last4'>): string
 
 export type Scenarios = { lateFee: string; interest: string; nextPeriod: string };
 
-/** Scenario 1: the minimum by the due date (no Late Fee). Scenario 2: the statement balance by the due date (no interest). */
+/**
+ * Scenario 1: the minimum by the due date (no Late Fee). Scenario 2: the statement balance by the due date (no interest).
+ * A field the PDF did not give is a warning to check the statement, never "nothing to pay".
+ */
 export function scenarios(s: Statement): Scenarios {
-  const due = formatDate(s.dueDate);
-  const lateFee = (s.minimumPayment ?? 0) > 0
-    ? `Чтобы избежать Late Fee, внеси минимум ${formatMoney(s.minimumPayment)} до ${due}.`
-    : 'Платеж не требуется, Late Fee не грозит.';
-  const interest = (s.statementBalance ?? 0) > 0
-    ? `Чтобы не платить проценты, внеси полный Statement Balance ${formatMoney(s.statementBalance)} до ${due}.`
-    : `Statement Balance ${formatMoney(s.statementBalance)}: гасить нечего, проценты не начисляются.`;
+  const due = s.dueDate ? formatDate(s.dueDate) : 'Payment Due Date (дата не найдена в PDF)';
+  const lateFee = s.minimumPayment === null
+    ? `⚠ Minimum Payment Due не найден в PDF: проверь его в выписке и внеси до ${due}.`
+    : s.minimumPayment > 0
+      ? `Чтобы избежать Late Fee, внеси минимум ${formatMoney(s.minimumPayment)} до ${due}.`
+      : 'Платеж не требуется, Late Fee не грозит.';
+  const interest = s.statementBalance === null
+    ? `⚠ Statement Balance не найден в PDF: проверь его в выписке и внеси полностью до ${due}.`
+    : s.statementBalance > 0
+      ? `Чтобы не платить проценты, внеси полный Statement Balance ${formatMoney(s.statementBalance)} до ${due}.`
+      : `Statement Balance ${formatMoney(s.statementBalance)}: гасить нечего, проценты не начисляются.`;
   const nextPeriod = `Покупки, сделанные после ${formatDate(s.closingDate)}, входят в следующий период и гасить их сейчас не нужно.`;
   return { lateFee, interest, nextPeriod };
 }
@@ -55,10 +62,42 @@ export function reminderAmount(s: Statement, mode: RemindAmount): Cents | null {
   return amount !== null && amount > 0 && s.dueDate ? amount : null;
 }
 
-/** Statements with a due date, nearest first (past due dates last, most recent first). */
+/** The fields not found in the PDF that keep a statement out of the reminders (empty when nothing is missing). */
+export function reminderMissing(s: Statement, mode: RemindAmount): string[] {
+  const missing: string[] = [];
+  if (!s.dueDate) missing.push('Payment Due Date');
+  const fromMinimum = mode === 'minimum' && (s.minimumPayment ?? 0) > 0;
+  if (!fromMinimum && s.statementBalance === null) missing.push('Statement Balance');
+  return missing;
+}
+
+/** Due today or later; false for a statement whose due date was not found. */
+export const isAhead = (s: Statement, today: string): boolean => !!s.dueDate && s.dueDate >= today;
+
+/**
+ * Statements whose due date was not found first (the date is unknown, so they may be due soon), then the due
+ * dates ahead, nearest first, then the past ones, most recent first.
+ */
 export function upcoming(statements: Statement[], today: string): Statement[] {
-  const dated = statements.filter(s => s.dueDate);
-  const ahead = dated.filter(s => (s.dueDate as string) >= today).sort((a, b) => (a.dueDate as string).localeCompare(b.dueDate as string));
-  const past = dated.filter(s => (s.dueDate as string) < today).sort((a, b) => (b.dueDate as string).localeCompare(a.dueDate as string));
-  return [...ahead, ...past];
+  const undated = statements.filter(s => !s.dueDate);
+  const ahead = statements.filter(s => isAhead(s, today)).sort((a, b) => (a.dueDate as string).localeCompare(b.dueDate as string));
+  const past = statements.filter(s => !!s.dueDate && s.dueDate < today).sort((a, b) => (b.dueDate as string).localeCompare(a.dueDate as string));
+  return [...undated, ...ahead, ...past];
+}
+
+/**
+ * The sum of a field over the statements due today or later. `unknown` counts the statements the sum cannot
+ * include: due ahead with the field not found, or with no due date and the field not found or above 0.
+ */
+export function dueTotal(statements: Statement[], key: 'statementBalance' | 'minimumPayment', today: string): { cents: Cents; unknown: number } {
+  let cents = 0;
+  let unknown = 0;
+  for (const s of statements) {
+    const value = s[key];
+    if (!s.dueDate) { if (value === null || value > 0) unknown += 1; }
+    else if (s.dueDate < today) continue;
+    else if (value === null) unknown += 1;
+    else cents += Math.max(0, value);
+  }
+  return { cents, unknown };
 }

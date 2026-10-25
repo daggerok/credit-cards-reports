@@ -16,7 +16,7 @@ import { createRoot } from 'react-dom/client';
 import { addDays, buildIcs, googleUrl, outlookUrl, reminderFor, REMIND_DAYS_BEFORE } from './calendar';
 import { DATE_LABELS, FIELD_LABELS, parseStatement, UnknownIssuerError, type DateKey, type FieldKey, type Statement } from './parser';
 import { pdfText } from './pdf';
-import { cardLabel, daysBetween, formatDate, formatMoney, scenarios, todayIso, upcoming, type RemindAmount } from './report';
+import { cardLabel, daysBetween, dueTotal, formatDate, formatMoney, isAhead, reminderMissing, scenarios, todayIso, upcoming, type RemindAmount } from './report';
 
 // ---- 1. Storage (the view only, like fidelity-reports) -------------------------------------------------
 
@@ -107,11 +107,15 @@ function daysText(due: string | null, today: string): string {
   return days > 0 ? `in ${days} days` : `${-days} day${days === -1 ? '' : 's'} ago`;
 }
 
-function Fact({ label, value, sub, strong = false }: { label: string; value: string; sub?: string; strong?: boolean }) {
+const NOT_FOUND = 'not found in the PDF';
+
+/** A fact of the report; null = the PDF did not give it, shown in red so it is never read as $0 or "nothing due". */
+function Fact({ label, value, sub, strong = false }: { label: string; value: string | null; sub?: string; strong?: boolean }) {
+  const color = value === null ? 'text-rose-600 dark:text-rose-400' : strong ? 'text-slate-900 dark:text-white' : 'text-slate-800 dark:text-slate-100';
   return (
     <div className="min-w-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 px-3 py-2">
       <div className="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">{label}</div>
-      <div className={`tabular-nums ${strong ? 'text-lg font-bold text-slate-900 dark:text-white' : 'text-base font-semibold text-slate-800 dark:text-slate-100'}`}>{value}</div>
+      <div className={`tabular-nums ${strong ? 'text-lg font-bold' : 'text-base font-semibold'} ${color}`}>{value ?? `⚠ ${NOT_FOUND}`}</div>
       {sub ? <div className="text-xs text-slate-500 dark:text-slate-400">{sub}</div> : null}
     </div>
   );
@@ -123,12 +127,17 @@ function CalendarButtons({ s, remind, today }: { s: Statement; remind: RemindAmo
   const past = !!s.dueDate && s.dueDate < today;
   const reminder = past ? null : reminderFor(s, remind);
   const off = !reminder;
+  const missing = reminder || past ? [] : reminderMissing(s, remind);
   const link = (href: string, text: string, title: string) => (
     <a className={BTN_SMALL} href={off ? undefined : href} target="_blank" rel="noopener noreferrer" aria-disabled={off} title={title}>{text}</a>
   );
+  const note = reminder ? <>Reminder 3 days and 1 day before the due date: <span className="font-medium text-slate-700 dark:text-slate-200">{reminder.title}</span></>
+    : past ? 'The Payment Due Date has passed: no reminder'
+    : missing.length ? <span className="font-semibold text-rose-600 dark:text-rose-400">⚠ {missing.join(' and ')} {NOT_FOUND}: no reminder, look it up in the statement and add the payment to your calendar yourself</span>
+    : 'Nothing to pay: no reminder';
   return (
     <div className="space-y-1.5">
-      <div className="text-xs text-slate-500 dark:text-slate-400">{reminder ? <>Reminder 3 days and 1 day before the due date: <span className="font-medium text-slate-700 dark:text-slate-200">{reminder.title}</span></> : past ? 'The Payment Due Date has passed: no reminder' : 'Nothing to pay: no reminder'}</div>
+      <div className="text-xs text-slate-500 dark:text-slate-400">{note}</div>
       <div className="flex flex-wrap items-center gap-1.5">
       <button type="button" className={BTN_SMALL} disabled={off} aria-disabled={off}
         title="One all-day event on the Payment Due Date with alarms at 09:00 3 days and 1 day before (Apple Calendar, Outlook, any iCal app)"
@@ -233,10 +242,10 @@ function ReportCard({ entry, remind, today }: { entry: Entry; remind: RemindAmou
         <StatusBadge s={s} />
       </header>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <Fact label="Statement Closing Date" value={formatDate(s.closingDate)} />
-        <Fact label="Payment Due Date" value={formatDate(s.dueDate)} sub={daysText(s.dueDate, today)} strong />
-        <Fact label="Statement Balance" value={formatMoney(s.statementBalance)} strong />
-        <Fact label="Minimum Payment Due" value={formatMoney(s.minimumPayment)} />
+        <Fact label="Statement Closing Date" value={s.closingDate ? formatDate(s.closingDate) : null} />
+        <Fact label="Payment Due Date" value={s.dueDate ? formatDate(s.dueDate) : null} sub={daysText(s.dueDate, today)} strong />
+        <Fact label="Statement Balance" value={s.statementBalance === null ? null : formatMoney(s.statementBalance)} strong />
+        <Fact label="Minimum Payment Due" value={s.minimumPayment === null ? null : formatMoney(s.minimumPayment)} />
       </div>
       {past ? <div className="text-xs text-amber-700 dark:text-amber-300">The Payment Due Date has passed: this statement is history, load the newest one for current dates</div> : null}
       <div className="grid gap-2 md:grid-cols-2">
@@ -259,15 +268,21 @@ function ReportCard({ entry, remind, today }: { entry: Entry; remind: RemindAmou
 
 function Upcoming({ statements, today, onPick }: { statements: Statement[]; today: string; onPick: (fileName: string) => void }) {
   const list = upcoming(statements, today);
-  const ahead = list.filter(s => (s.dueDate as string) >= today);
-  const sum = (key: 'statementBalance' | 'minimumPayment') => ahead.reduce((acc, s) => acc + Math.max(0, s[key] ?? 0), 0);
+  // a value or a due date not found in a PDF makes the total "+ ?": the sum leaves that statement out
+  const total = (key: 'statementBalance' | 'minimumPayment') => {
+    const t = dueTotal(statements, key, today);
+    return t.unknown
+      ? <b className="text-rose-600 dark:text-rose-400" title={`Incomplete: ${t.unknown} statement${t.unknown === 1 ? '' : 's'} without this amount or a Payment Due Date in the PDF ${t.unknown === 1 ? 'is' : 'are'} not counted`}>{formatMoney(t.cents)} + ?</b>
+      : <b>{formatMoney(t.cents)}</b>;
+  };
+  const amount = (cents: number | null) => (cents === null ? <span className="text-rose-600 dark:text-rose-400 font-semibold" title={NOT_FOUND}>?</span> : formatMoney(cents));
   if (!list.length) return null;
   return (
     <section className={`${PANEL} p-4 space-y-3`}>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Upcoming payments</h2>
         <div className="text-sm text-slate-600 dark:text-slate-300 tabular-nums">
-          Due ahead: statement balances <b>{formatMoney(sum('statementBalance'))}</b> · minimums <b>{formatMoney(sum('minimumPayment'))}</b>
+          Due ahead: statement balances {total('statementBalance')} · minimums {total('minimumPayment')}
         </div>
       </div>
       <div className="overflow-x-auto themed-scroll">
@@ -277,15 +292,16 @@ function Upcoming({ statements, today, onPick }: { statements: Statement[]; toda
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
             {list.map(s => {
-              const past = (s.dueDate as string) < today;
-              const soon = !past && daysBetween(today, s.dueDate as string) <= 3;
+              const past = !!s.dueDate && s.dueDate < today;
+              const soon = isAhead(s, today) && daysBetween(today, s.dueDate as string) <= 3;
               return (
                 <tr key={s.fileName} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer ${past ? 'opacity-55' : ''}`} onClick={() => onPick(s.fileName)} title="Open this report">
-                  <td className="py-2 pr-4 tabular-nums font-semibold">{formatDate(s.dueDate)}</td>
-                  <td className={`py-2 pr-4 ${soon ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{daysText(s.dueDate, today)}{past ? ' (past)' : ''}</td>
+                  <td className="py-2 pr-4 tabular-nums font-semibold">{s.dueDate ? formatDate(s.dueDate)
+                    : <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full border status-bad" title="Look up the Payment Due Date in the statement">⚠ Due date not found</span>}</td>
+                  <td className={`py-2 pr-4 ${soon || !s.dueDate ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{s.dueDate ? daysText(s.dueDate, today) : 'unknown'}{past ? ' (past)' : ''}</td>
                   <td className="py-2 pr-4 font-medium text-slate-900 dark:text-white">{cardLabel(s)}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{formatMoney(s.statementBalance)}</td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{formatMoney(s.minimumPayment)}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{amount(s.statementBalance)}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{amount(s.minimumPayment)}</td>
                   <td className="py-2"><StatusBadge s={s} /></td>
                 </tr>
               );
@@ -403,13 +419,16 @@ function App() {
     setStatus(`${done.length} file${done.length === 1 ? '' : 's'} read${unverified ? `, ${unverified} unverified` : ''}${failed ? `, ${failed} not recognized` : ''}`);
   }, []);
 
+  // statements whose due date or amount was not found get no reminder: say so instead of leaving them out silently
+  const leftOut = statements.filter(s => (!s.dueDate || isAhead(s, today)) && reminderMissing(s, remind).length).length;
+  const leftOutText = leftOut ? `${leftOut} statement${leftOut === 1 ? '' : 's'} left out: Payment Due Date or amount not found in the PDF` : '';
   const addAllToCalendar = () => {
-    const reminders = statements.filter(s => (s.dueDate ?? '') >= today).map(s => reminderFor(s, remind)).filter(r => r !== null);
+    const reminders = statements.filter(s => isAhead(s, today)).map(s => reminderFor(s, remind)).filter(r => r !== null);
     if (!reminders.length) return;
     download(`credit-cards-payments-${today}.ics`, buildIcs(reminders), 'text/calendar');
-    setStatus(`${reminders.length} payment${reminders.length === 1 ? '' : 's'} in credit-cards-payments-${today}.ics`);
+    setStatus(`${reminders.length} payment${reminders.length === 1 ? '' : 's'} in credit-cards-payments-${today}.ics${leftOutText ? `; ${leftOutText}` : ''}`);
   };
-  const upcomingReminders = statements.filter(s => (s.dueDate ?? '') >= today && reminderFor(s, remind)).length;
+  const upcomingReminders = statements.filter(s => isAhead(s, today) && reminderFor(s, remind)).length;
 
   // drag and drop on the whole page, same as fidelity-reports
   useEffect(() => {
@@ -462,9 +481,10 @@ function App() {
   };
 
   const validated = statements.filter(s => s.verification.status === 'VALIDATED').length;
-  const next = upcoming(statements, today).find(s => (s.dueDate as string) >= today);
+  const next = upcoming(statements, today).find(s => isAhead(s, today));
+  const undated = statements.filter(s => !s.dueDate).length;
   const subtitle = entries.length
-    ? `${statements.length} statement${statements.length === 1 ? '' : 's'}, ${validated} validated${next ? ` · next due ${formatDate(next.dueDate)} (${cardLabel(next)})` : ''}${reading ? ' · reading…' : ''}`
+    ? `${statements.length} statement${statements.length === 1 ? '' : 's'}, ${validated} validated${next ? ` · next due ${formatDate(next.dueDate)} (${cardLabel(next)})` : ''}${undated ? ` · ⚠ ${undated} without a due date` : ''}${reading ? ' · reading…' : ''}`
     : 'Credit card statements (PDF) read in the browser, no AI';
 
   const inputTabs: Tab[] = sorted.map((e, i) => ({ id: e.name, label: String(i + 1), sub: e.name, busy: e.status === 'parsing', warn: e.status === 'error', title: e.error ?? e.name }));
@@ -545,7 +565,7 @@ function App() {
                 <button type="button" disabled={!entries.length} onClick={() => { setEntries([]); setStatus('Files cleared'); }} className={BTN_SLATE} title="Forget the loaded files">Clear</button>
                 <button type="button" disabled={!upcomingReminders} onClick={addAllToCalendar}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-600"
-                  title="One .ics file with every upcoming payment: an all-day event on each Payment Due Date with alarms 3 days and 1 day before">
+                  title={`One .ics file with every upcoming payment: an all-day event on each Payment Due Date with alarms 3 days and 1 day before${leftOutText ? ` (${leftOutText})` : ''}`}>
                   Add all payments to calendar{upcomingReminders ? ` (${upcomingReminders})` : ''}
                 </button>
               </div>
