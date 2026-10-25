@@ -15,7 +15,6 @@ import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, type Rea
 import { createRoot } from 'react-dom/client';
 import { addDays, buildIcs, googleUrl, outlookUrl, reminderFor, REMIND_DAYS_BEFORE } from './calendar';
 import { DATE_LABELS, FIELD_LABELS, parseStatement, UnknownIssuerError, type DateKey, type FieldKey, type Statement } from './parser';
-import { pdfText } from './pdf';
 import { cardLabel, daysBetween, dueTotal, formatDate, formatMoney, isAhead, reminderMissing, scenarios, todayIso, upcoming, type RemindAmount } from './report';
 
 // ---- 1. Storage (the view only, like fidelity-reports) -------------------------------------------------
@@ -48,6 +47,8 @@ const STATUS_TEXT = { VALIDATED: 'VALIDATED', UNVERIFIED: 'PARSING ERROR / UNVER
 async function readEntry(file: File): Promise<Entry> {
   let text = '';
   try {
+    // pdf.js (~700 kB) loads with the first file, not with the page
+    const { pdfText } = await import('./pdf');
     text = await pdfText(file);
     return { name: file.name, status: 'done', text, statement: parseStatement(file.name, text) };
   } catch (e) {
