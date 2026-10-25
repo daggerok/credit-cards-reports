@@ -5,7 +5,7 @@
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
-const root = join(import.meta.dir, '..');
+const root = join(__dirname, '..');
 mkdirSync(join(root, 'dist'), { recursive: true });
 copyFileSync(join(root, 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs'), join(root, 'dist/pdf.worker.min.mjs'));
 console.log('dist/pdf.worker.min.mjs');

@@ -1,3 +1,4 @@
+/// <reference lib="esnext" />
 // Payment reminders: an .ics file (RFC 5545, one all-day event on the Payment Due Date with alarms at 09:00
 // 3 days and 1 day before it) and links for Google Calendar and Outlook.com. A link cannot carry alarms, so
 // each link creates the reminder itself: an event at 09:00 on the day 3 days (or 1 day) before the due date.

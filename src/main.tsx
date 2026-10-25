@@ -1,3 +1,4 @@
+/// <reference lib="esnext" />
 // =========================================================================
 // Credit Cards Reports: credit card statements (PDF) -> what to pay and by when, built in the browser with no AI.
 //
@@ -404,7 +405,7 @@ function App() {
   const sheet = outputSheet === ALL || sorted.some(e => e.name === outputSheet) ? outputSheet : ALL;
 
   const loadFiles = useCallback(async (list: FileList | File[]) => {
-    const picked = [...list].filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+    const picked = Array.from(list).filter(f => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
     if (!picked.length) { setStatus('Only .pdf files can be loaded'); return; }
     const names = new Set(picked.map(f => f.name));
     // more loads add files; a file with the same name is replaced

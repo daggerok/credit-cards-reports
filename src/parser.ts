@@ -1,3 +1,4 @@
+/// <reference lib="esnext" />
 // Statement text -> fields, with no AI: one table of label patterns per issuer and a shared engine.
 // Money is kept in integer cents so the balance check is exact.
 //

@@ -1,3 +1,4 @@
+/// <reference lib="esnext" />
 // A parsed statement -> what to pay and by when: the two scenarios of every report and the upcoming due dates.
 import type { Cents, Statement } from './parser';
 
