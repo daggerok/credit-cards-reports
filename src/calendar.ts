@@ -25,6 +25,7 @@ function unverifiedNote(s: Statement): string[] {
   return [
     `${UNVERIFIED_MARK}PARSING ERROR / UNVERIFIED: check the amounts and dates in the statement`,
     ...(v.missing.length ? [`Not found: ${v.missing.join(', ')}`] : []),
+    ...v.problems,
     ...(v.diff !== null && v.diff !== 0 ? [`Difference (PDF - calculated): ${formatMoney(v.diff)}`] : []),
     '',
   ];

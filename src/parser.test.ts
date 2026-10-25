@@ -46,7 +46,7 @@ describe('parseStatement: one layout per issuer', () => {
       expect({ issuer: s.issuer, bank: s.bank, card: s.card, last4: s.last4, closing: s.closingDate, due: s.dueDate })
         .toEqual({ issuer: e.issuer, bank: e.bank, card: e.card, last4: e.last4, closing: e.closing, due: e.due });
       expect<unknown[]>([s.previousBalance, s.payments, s.purchases, s.fees, s.interest, s.newBalance, s.minimumPayment, s.statementBalance]).toEqual(e.values);
-      expect(s.verification).toEqual({ status: 'VALIDATED', calculated: e.values[5], diff: 0, missing: [] });
+      expect(s.verification).toEqual({ status: 'VALIDATED', calculated: e.values[5], diff: 0, missing: [], problems: [] });
     });
   }
 
@@ -79,7 +79,7 @@ describe('parseStatement: one layout per issuer', () => {
 describe('math verification', () => {
   test('a wrong New Balance: PARSING ERROR / UNVERIFIED with the difference', () => {
     const s = parseStatement('chase.pdf', FIXTURES.chase.replace('New Balance  $164.00', 'New Balance  $174.00').replace('New Balance:  $164.00', 'New Balance:  $174.00'));
-    expect(s.verification).toEqual({ status: 'UNVERIFIED', calculated: 16400, diff: 1000, missing: [] });
+    expect(s.verification).toEqual({ status: 'UNVERIFIED', calculated: 16400, diff: 1000, missing: [], problems: [] });
   });
 
   test('a missing line: UNVERIFIED with the field named', () => {
@@ -93,7 +93,33 @@ describe('math verification', () => {
   test('a missing due date makes the statement unverified even when the math holds', () => {
     const s = parseStatement('amex.pdf', FIXTURES.amex.replace(/Payment Due Date\s+06\/01\/26/, 'Payment Due Date'));
     expect(s.dueDate).toBeNull();
-    expect(s.verification).toEqual({ status: 'UNVERIFIED', calculated: 1500, diff: 0, missing: ['Payment Due Date'] });
+    expect(s.verification).toEqual({ status: 'UNVERIFIED', calculated: 1500, diff: 0, missing: ['Payment Due Date'], problems: [] });
+  });
+
+  test('Apple: a monthly balance not found or above the Total Balance is UNVERIFIED although the math holds', () => {
+    const missing = parseStatement('apple.pdf', FIXTURES.apple.replace('$900.00  $25.00  Mar 31, 2026', 'n/a  $25.00  Mar 31, 2026'));
+    expect(missing.statementBalance).toBeNull();
+    expect(missing.verification).toMatchObject({ status: 'UNVERIFIED', diff: 0, missing: ['Minimum Payment Due', 'Statement Balance', 'Payment Due Date'] });
+    const above = parseStatement('apple.pdf', FIXTURES.apple.replace('$900.00  $25.00', '$950.00  $25.00'));
+    expect(above.statementBalance).toBe(95000);
+    expect(above.verification).toEqual({ status: 'UNVERIFIED', calculated: 90000, diff: 0, missing: [], problems: ['Statement Balance is outside $0.00 to the New Balance'] });
+    const below = verify({ ...above, statementBalance: -100 });
+    expect(below).toMatchObject({ status: 'UNVERIFIED', problems: ['Statement Balance is outside $0.00 to the New Balance'] });
+    const lower = parseStatement('apple.pdf', FIXTURES.apple.replace('$900.00  $25.00', '$850.00  $25.00'));
+    expect(lower.verification).toMatchObject({ status: 'VALIDATED', problems: [] });
+  });
+
+  test('Statement Balance bounds apply only to a New Balance above 0 (a credit balance stays VALIDATED)', () => {
+    const base = { previousBalance: 0, payments: 500, purchases: 0, fees: 0, interest: 0, newBalance: -500, minimumPayment: 0, statementBalance: -500, closingDate: '2026-01-01', dueDate: '2026-01-25' };
+    expect(verify(base)).toEqual({ status: 'VALIDATED', calculated: -500, diff: 0, missing: [], problems: [] });
+    expect(verify({ ...base, statementBalance: null })).toMatchObject({ status: 'UNVERIFIED', missing: ['Statement Balance'] });
+  });
+
+  test('payments: each part counts as a payment whatever its sign (Capital One credits printed without a minus)', () => {
+    const s = parseStatement('c1.pdf', FIXTURES.capitalOne.replace('Other Credits  - $5.00', 'Other Credits  $5.00'));
+    expect(s.hits.payments.map(h => h.cents)).toEqual([-5000, 500]);
+    expect(s.payments).toBe(5500);
+    expect(s.verification.status).toBe('VALIDATED');
   });
 
   test('formula: previous - payments + purchases + fees + interest', () => {
