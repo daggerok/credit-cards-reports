@@ -22,7 +22,7 @@ Live: https://daggerok.github.io/credit-cards-reports/
 
 ## Math verification
 
-`Calculated New Balance = Previous Balance - Payments & Credits + Purchases & Charges + Fees + Interest`, in integer cents. Equal to the New Balance of the PDF and every field found: `VALIDATED`; otherwise `PARSING ERROR / UNVERIFIED` with the difference (a missed line or a wrong sign) or the fields not found
+`Calculated New Balance = Previous Balance - Payments & Credits + Purchases & Charges + Fees + Interest`, in integer cents. Equal to the New Balance of the PDF, every field found (the Statement Balance too) and, when the New Balance is above $0.00, a Statement Balance between $0.00 and the New Balance (Apple's comes from its own column): `VALIDATED`; otherwise `PARSING ERROR / UNVERIFIED` with the difference (a missed line or a wrong sign), the fields not found or the value out of range. Payments & Credits adds up its parts without their signs (one bank prints a minus, another none)
 
 | Issuer | Payments & Credits | Purchases & Charges | Fees, Interest | Notes |
 |---|---|---|---|---|

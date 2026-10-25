@@ -25,6 +25,8 @@ export type Verification = {
   calculated: Cents | null;
   diff: Cents | null;
   missing: string[];
+  /** Values found but impossible, e.g. a Statement Balance above the New Balance (a wrong column). */
+  problems: string[];
 };
 
 export type Statement = {
@@ -338,15 +340,23 @@ export function detectIssuer(text: string): Issuer | null {
 
 // ---- the engine -------------------------------------------------------------------------------------
 
-/** Previous Balance - Payments & Credits + Purchases & Charges + Fees + Interest, compared with the New Balance to the cent. */
+/**
+ * Previous Balance - Payments & Credits + Purchases & Charges + Fees + Interest, compared with the New Balance to the cent.
+ * The Statement Balance (what to pay for no interest) is required too and, with a New Balance above 0, must lie between
+ * $0.00 and the New Balance: Apple's comes from its own column, which the balance check does not cover.
+ */
 export function verify(s: Pick<Statement, FieldKey | DateKey>): Verification {
-  const required: (FieldKey | DateKey)[] = ['previousBalance', 'payments', 'purchases', 'fees', 'interest', 'newBalance', 'minimumPayment', 'closingDate', 'dueDate'];
+  const required: (FieldKey | DateKey)[] = ['previousBalance', 'payments', 'purchases', 'fees', 'interest', 'newBalance', 'minimumPayment', 'statementBalance', 'closingDate', 'dueDate'];
   const missing = required.filter(k => s[k] === null).map(k => (k in FIELD_LABELS ? FIELD_LABELS[k as FieldKey] : DATE_LABELS[k as DateKey]));
-  const { previousBalance: p, payments: pay, purchases: buy, fees, interest, newBalance } = s;
-  if (p === null || pay === null || buy === null || fees === null || interest === null) return { status: 'UNVERIFIED', calculated: null, diff: null, missing };
+  const { previousBalance: p, payments: pay, purchases: buy, fees, interest, newBalance, statementBalance } = s;
+  const problems: string[] = [];
+  if (newBalance !== null && newBalance > 0 && statementBalance !== null && (statementBalance < 0 || statementBalance > newBalance)) {
+    problems.push('Statement Balance is outside $0.00 to the New Balance');
+  }
+  if (p === null || pay === null || buy === null || fees === null || interest === null) return { status: 'UNVERIFIED', calculated: null, diff: null, missing, problems };
   const calculated = p - pay + buy + fees + interest;
   const diff = newBalance === null ? null : newBalance - calculated;
-  return { status: diff === 0 && !missing.length ? 'VALIDATED' : 'UNVERIFIED', calculated, diff, missing };
+  return { status: diff === 0 && !missing.length && !problems.length ? 'VALIDATED' : 'UNVERIFIED', calculated, diff, missing, problems };
 }
 
 export class UnknownIssuerError extends Error {}
@@ -368,7 +378,8 @@ export function parseStatement(fileName: string, text: string): Statement {
       const hit = part.find(ctx);
       if (hit && hit.cents !== null) {
         hits[key].push(hit);
-        if (sum !== null) sum += hit.cents;
+        // payments are printed with a minus (or none), each part on its own: the formula subtracts the amount
+        if (sum !== null) sum += key === 'payments' ? Math.abs(hit.cents) : hit.cents;
       } else if (part.optional) {
         hits[key].push({ part: part.name, cents: 0, text: '', line: 0, note: 'not on the statement: 0' });
       } else {
@@ -378,8 +389,6 @@ export function parseStatement(fileName: string, text: string): Statement {
     }
     values[key] = sum;
   }
-  // payments are printed with a minus (or none): the formula subtracts the amount
-  if (values.payments !== null) values.payments = Math.abs(values.payments);
   if (!hits.statementBalance) {
     hits.statementBalance = [{ part: 'New Balance', cents: values.newBalance, text: '', line: 0, note: 'same as the New Balance' }];
     values.statementBalance = values.newBalance;

@@ -210,6 +210,7 @@ function RawData({ s }: { s: Statement }) {
           <div className="font-mono text-xs">New Balance from the PDF = {formatMoney(s.newBalance)}</div>
           {v.diff !== null && v.diff !== 0 ? <div className="text-xs font-semibold mt-1">Difference (PDF − calculated): {formatMoney(v.diff)}: a line was missed or a sign is wrong</div> : null}
           {v.missing.length ? <div className="text-xs font-semibold mt-1">Not found: {v.missing.join(', ')}</div> : null}
+          {v.problems.map(p => <div key={p} className="text-xs font-semibold mt-1">{p}: a wrong line or column was read</div>)}
         </div>
       </div>
     </details>

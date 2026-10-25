@@ -27,6 +27,8 @@ describe('reminder text', () => {
     expect(r2?.title).toStartWith('⚠ Оплатить $164.00 по карте');
     expect(r2?.details).toContain('Not found: Minimum Payment Due\n');
     expect(r2?.details).toContain('⚠ Minimum Payment Due не найден в PDF');
+    const apple = parseStatement('apple.pdf', FIXTURES.apple.replace('$900.00  $25.00', '$950.00  $25.00'));
+    expect(reminderFor(apple, 'balance')?.details).toStartWith('⚠ PARSING ERROR / UNVERIFIED: check the amounts and dates in the statement\nStatement Balance is outside $0.00 to the New Balance\n\n');
   });
 
   test('addDays crosses months and years', () => {
