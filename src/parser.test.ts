@@ -34,6 +34,8 @@ const EXPECTED: Record<keyof typeof FIXTURES, Expected> = {
   capitalOne: { issuer: 'capital-one', bank: 'Capital One', card: 'Savor', last4: '1111', closing: '2026-10-10', due: '2026-11-04', values: [5000, 5500, 30500, 0, 0, 30000, 2500, 30000] },
   citi: { issuer: 'citi', bank: 'Citi', card: 'Citi Custom Cash Card', last4: '2222', closing: '2026-07-03', due: '2026-08-01', values: [10000, 10200, 12200, 0, 0, 12000, 4100, 12000] },
   bofa: { issuer: 'bofa', bank: 'Bank of America', card: 'Visa Signature', last4: '3333', closing: '2026-06-19', due: '2026-07-16', values: [-200, 3000, 4200, 0, 0, 1000, 1000, 1000] },
+  bofaDateBelow: { issuer: 'bofa', bank: 'Bank of America', card: 'Visa Signature', last4: '3333', closing: '2026-06-19', due: '2026-07-16', values: [-200, 3000, 4200, 0, 0, 1000, 1000, 1000] },
+  bofaPeriodOnly: { issuer: 'bofa', bank: 'Bank of America', card: 'Visa Signature', last4: '3333', closing: '2026-06-19', due: '2026-07-16', values: [-200, 3000, 4200, 0, 0, 1000, 1000, 1000] },
   amex: { issuer: 'amex', bank: 'American Express', card: 'Blue Cash Everyday', last4: '4444', closing: '2026-05-07', due: '2026-06-01', values: [0, 50000, 51500, 0, 0, 1500, 1500, 1500] },
   apple: { issuer: 'apple', bank: 'Apple', card: 'Apple Card', last4: '', closing: '2026-02-28', due: '2026-03-31', values: [10000, 20000, 100000, 0, 0, 90000, 2500, 90000] },
 };
@@ -61,6 +63,26 @@ describe('parseStatement: one layout per issuer', () => {
     const hit = parseStatement('bofa.pdf', FIXTURES.bofa).hits.purchases[0];
     expect(hit).toMatchObject({ part: 'Purchases and Adjustments', cents: 4200 });
     expect(hit.text).toBe('Purchases and Adjustments | $42.00  Payment Due Date  07/16/2026');
+  });
+
+  test('BofA closing date: the label line first, then the date on the line below, then the end of the period', () => {
+    const lineOf = (text: string, n: number) => text.split('\n')[n - 1];
+    const same = parseStatement('bofa.pdf', FIXTURES.bofa).dateHits.closingDate;
+    expect(same).toMatchObject({ iso: '2026-06-19', text: 'Statement Closing Date  06/19/2026' });
+    expect(lineOf(FIXTURES.bofa, same?.line ?? 0)).toBe('Statement Closing Date  06/19/2026');
+    const below = parseStatement('bofa.pdf', FIXTURES.bofaDateBelow).dateHits.closingDate;
+    expect(below).toMatchObject({ iso: '2026-06-19', text: 'Statement Closing Date  If you make no additional  You will payoff the  And you will end up | 06/19/2026' });
+    expect(lineOf(FIXTURES.bofaDateBelow, below?.line ?? 0)).toBe('06/19/2026');
+    const period = parseStatement('bofa.pdf', FIXTURES.bofaPeriodOnly).dateHits.closingDate;
+    expect(period).toMatchObject({ iso: '2026-06-19', text: 'May 20 - June 19, 2026' });
+    expect(lineOf(FIXTURES.bofaPeriodOnly, period?.line ?? 0)).toBe('May 20 - June 19, 2026');
+  });
+
+  test('BofA: a line under the label that does not start with a date is never taken', () => {
+    const text = FIXTURES.bofaDateBelow.replace('\n06/19/2026\n', '\nsee 06/19/2026\n').replace('May 20 - June 19, 2026', 'Billing cycle');
+    const s = parseStatement('bofa.pdf', text);
+    expect(s.closingDate).toBeNull();
+    expect(s.verification.status).toBe('UNVERIFIED');
   });
 
   test('optional parts missing from the statement count as 0', () => {

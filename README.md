@@ -29,7 +29,7 @@ Live: https://daggerok.github.io/credit-cards-reports/
 | Chase | Payment, Credits | Purchases + Cash Advances + Balance Transfers | Fees Charged, Interest Charged | due date and minimum from the payment coupon |
 | Capital One | Payments + Other Credits | Transactions + Cash Advances | Fees Charged, Interest Charged | minimum from the `New Balance  Minimum Payment Due` columns |
 | Citi | Payments + Credits | Purchases + Cash advances | Fees, Interest | closing date = end of the Billing Period |
-| Bank of America | Payments and Other Credits | Purchases and Adjustments (+ Balance Transfers, Cash Advances) | Fees Charged, Interest Charged | the purchases amount sits one line off its label |
+| Bank of America | Payments and Other Credits | Purchases and Adjustments (+ Balance Transfers, Cash Advances) | Fees Charged, Interest Charged | the purchases amount sits one line off its label; closing date: label on the same line, else the date on the line below, else the end of the statement period |
 | American Express | Payments/Credits | New Charges | Fees, Interest Charged | last 4 of the 5 digits Amex prints |
 | Apple Card | Total payments for this period | Total charges, credits, and returns for this period | no fees, Total interest for this month | totals over every co-owner; Statement Balance = the monthly balance; no card number on the statement |
 
