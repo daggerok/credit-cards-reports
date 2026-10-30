@@ -89,6 +89,42 @@ New Balance Total  $10.00  Late Payment Warning: If we do not receive your Total
 Statement Closing Date  06/19/2026
 Days in Billing Cycle  31`,
 
+  // pdf.js merged the label with the minimum payment table beside it: the date sits alone on the next line
+  bofaDateBelow: `Customer Service Information:
+www.bankofamerica.com
+Visa Signature®
+Account# XXXX XXXX XXXX 3333
+May 20 - June 19, 2026
+Account Summary/Payment Information  New Balance Total  $10.00
+Current Payment Due  $10.00
+Previous Balance  -$2.00
+Payments and Other Credits  -$30.00  Total Minimum Payment Due  $10.00
+$42.00  Payment Due Date  07/16/2026
+Purchases and Adjustments
+Fees Charged  $0.00
+Interest Charged  $0.00
+New Balance Total  $10.00  Late Payment Warning: If we do not receive your Total Minimum
+Statement Closing Date  If you make no additional  You will payoff the  And you will end up
+06/19/2026
+Days in Billing Cycle  charges using this card  balance shown on this  paying an estimated`,
+
+  // no closing date label at all: the end of the period near the top is the closing date
+  bofaPeriodOnly: `Customer Service Information:
+www.bankofamerica.com
+Visa Signature®
+Account# XXXX XXXX XXXX 3333
+May 20 - June 19, 2026
+Account Summary/Payment Information  New Balance Total  $10.00
+Current Payment Due  $10.00
+Previous Balance  -$2.00
+Payments and Other Credits  -$30.00  Total Minimum Payment Due  $10.00
+$42.00  Payment Due Date  07/16/2026
+Purchases and Adjustments
+Fees Charged  $0.00
+Interest Charged  $0.00
+New Balance Total  $10.00  Late Payment Warning: If we do not receive your Total Minimum
+Days in Billing Cycle  31`,
+
   amex: `Blue Cash Everyday® from American Express  p. 1/6
 Closing Date 05/07/26  TTY:  Use Relay 711
 Account Ending 0-04444  Website:  americanexpress.com

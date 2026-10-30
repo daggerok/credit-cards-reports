@@ -156,6 +156,31 @@ function dateAt(re: RegExp): DateFinder {
   };
 }
 
+/** A label that starts a line with nothing usable after it and a date that starts the next line (BofA merges the label with the table beside it). */
+function dateBelow(labelSource: string): DateFinder {
+  const label = new RegExp(String.raw`^${labelSource}\b`);
+  const leading = new RegExp(String.raw`^(${DATE})(?!\d)`);
+  return ({ lines }) => {
+    for (let i = 0; i + 1 < lines.length; i += 1) {
+      if (!label.test(lines[i])) continue;
+      const m = leading.exec(lines[i + 1]);
+      if (m) return { iso: parseDate(m[1]), text: `${lines[i]} | ${lines[i + 1]}`, line: i + 2 };
+    }
+    return null;
+  };
+}
+
+/** The first of the date finders that finds something. */
+function firstDate(...finders: DateFinder[]): DateFinder {
+  return ctx => {
+    for (const find of finders) {
+      const hit = find(ctx);
+      if (hit) return hit;
+    }
+    return null;
+  };
+}
+
 function dateColumn(header: RegExp, index: number): DateFinder {
   return ({ lines }) => {
     const c = columnTokens(lines, header);
@@ -166,6 +191,8 @@ function dateColumn(header: RegExp, index: number): DateFinder {
 
 const after = (labelSource: string) => new RegExp(String.raw`${labelSource}\s*:?\s*(${DATE})`);
 const rangeEnd = (prefix: string) => new RegExp(String.raw`${prefix}\s*${DATE}\s*[-–—]\s*(${DATE})`);
+/** The end of a statement period printed as "May 20 - June 19, 2026" (Apple, BofA). */
+const PERIOD_END = /[A-Z][a-z]{2,8} \d{1,2}\s*[-–—]\s*([A-Z][a-z]{2,8} \d{1,2}, \d{4})/;
 
 // ---- issuers ----------------------------------------------------------------------------------------
 
@@ -194,7 +221,7 @@ export const ISSUERS: Issuer[] = [
     card: () => 'Apple Card',
     last4: () => '',
     dates: {
-      closingDate: dateAt(/[A-Z][a-z]{2,8} \d{1,2}\s*[-–—]\s*([A-Z][a-z]{2,8} \d{1,2}, \d{4})/),
+      closingDate: dateAt(PERIOD_END),
       dueDate: dateColumn(/Your \w+ Balance\s+Minimum\s+Payment/, 2),
     },
     fields: {
@@ -275,7 +302,8 @@ export const ISSUERS: Issuer[] = [
     card: text => clean(/^(.+)\n\s*Account#/m.exec(text)?.[1] ?? 'Card'),
     last4: text => lastDigits(/Account#\s*([\dX ]+)/.exec(text)?.[1]),
     dates: {
-      closingDate: dateAt(after('Statement Closing Date')),
+      // the label with its date, else the date alone on the next line, else the end of the statement period
+      closingDate: firstDate(dateAt(after('Statement Closing Date')), dateBelow('Statement Closing Date'), dateAt(PERIOD_END)),
       dueDate: dateAt(after('Payment Due Date')),
     },
     fields: {
