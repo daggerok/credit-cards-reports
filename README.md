@@ -30,7 +30,7 @@ Live: https://daggerok.github.io/credit-cards-reports/
 | Capital One | Payments + Other Credits | Transactions + Cash Advances | Fees Charged, Interest Charged | minimum from the `New Balance  Minimum Payment Due` columns |
 | Citi | Payments + Credits | Purchases + Cash advances | Fees, Interest | closing date = end of the Billing Period |
 | Bank of America | Payments and Other Credits | Purchases and Adjustments (+ Balance Transfers, Cash Advances) | Fees Charged, Interest Charged | the purchases amount sits one line off its label; closing date: label on the same line, else the date on the line below, else the end of the statement period |
-| American Express | Payments/Credits | New Charges | Fees, Interest Charged | last 4 of the 5 digits Amex prints |
+| American Express | Payments/Credits | New Charges | Fees, Interest Charged | last 4 of the 5 digits Amex prints; a credit balance is printed `CR$x.xx` (read as negative) and the due date line says `Payment Not Required`: with a $0.00 minimum that is "nothing to pay", shown as such, not as a missing date |
 | Apple Card | Total payments for this period | Total charges, credits, and returns for this period | no fees, Total interest for this month | totals over every co-owner; Statement Balance = the monthly balance; no card number on the statement |
 
 ## How the parser works

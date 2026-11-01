@@ -19,7 +19,7 @@ export type DateKey = 'closingDate' | 'dueDate';
 
 /** One value found in the text, with the line it came from (shown on the Parsed raw data panel). */
 export type Hit = { part: string; cents: Cents | null; text: string; line: number; note?: string };
-export type DateHit = { iso: string | null; text: string; line: number };
+export type DateHit = { iso: string | null; text: string; line: number; note?: string };
 
 export type Verification = {
   status: 'VALIDATED' | 'UNVERIFIED';
@@ -38,6 +38,8 @@ export type Statement = {
   last4: string;
   closingDate: string | null;
   dueDate: string | null;
+  /** No due date because the statement says so (Amex prints "Payment Not Required" with a Minimum Payment Due of $0.00). */
+  noPayment: boolean;
   previousBalance: Cents | null;
   payments: Cents | null;
   purchases: Cents | null;
@@ -54,16 +56,16 @@ export type Statement = {
 
 // ---- money and dates -------------------------------------------------------------------------------
 
-const MONEY = String.raw`[-+]?\s?\(?\$\s?-?\d[\d,]*\.\d{2}\)?`;
+const MONEY = String.raw`(?:CR\s?)?[-+]?\s?\(?\$\s?-?\d[\d,]*\.\d{2}\)?(?:\s?CR\b)?`;
 const DATE = String.raw`(?:\d{1,2}/\d{1,2}/\d{2,4}|[A-Z][a-z]{2,8}\.? \d{1,2},? \d{4})`;
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
-/** "$1,234.56" -> 123456, "-$1.57" and "- $340.00" and "($5.00)" -> negative; null when it is not an amount. */
+/** "$1,234.56" -> 123456, "-$1.57" and "- $340.00" and "($5.00)" and "CR$2.85" (a credit, Amex) -> negative; null when it is not an amount. */
 export function parseMoney(token: string): Cents | null {
   const m = /(\d[\d,]*)\.(\d{2})/.exec(token);
   if (!m) return null;
   const cents = Number(m[1].replace(/,/g, '')) * 100 + Number(m[2]);
-  const negative = /-/.test(token.slice(0, m.index)) || /^\s*\(.*\)\s*$/.test(token);
+  const negative = /-/.test(token.slice(0, m.index)) || /^\s*\(.*\)\s*$/.test(token) || /\bCR\b/.test(token);
   return negative ? -cents : cents;
 }
 
@@ -204,6 +206,8 @@ type Issuer = {
   card: (text: string) => string;
   last4: (text: string) => string;
   dates: Record<DateKey, DateFinder>;
+  /** Printed where the due date would be when nothing is due: no due date is then not an error. */
+  noPayment?: RegExp;
   fields: Record<Exclude<FieldKey, 'statementBalance'>, Part[]> & { statementBalance?: Part[] };
 };
 
@@ -245,6 +249,7 @@ export const ISSUERS: Issuer[] = [
       closingDate: dateAt(after('Closing Date')),
       dueDate: dateAt(after('Payment Due Date')),
     },
+    noPayment: /Payment Not Required/,
     fields: {
       previousBalance: [label('Previous Balance', /Previous Balance/)],
       payments: [label('Payments/Credits', /Payments\/Credits/)],
@@ -374,9 +379,10 @@ export function detectIssuer(text: string): Issuer | null {
  * The Statement Balance (what to pay for no interest) is required too and, with a New Balance above 0, must lie between
  * $0.00 and the New Balance: Apple's comes from its own column, which the balance check does not cover.
  */
-export function verify(s: Pick<Statement, FieldKey | DateKey>): Verification {
+export function verify(s: Pick<Statement, FieldKey | DateKey> & { noPayment?: boolean }): Verification {
   const required: (FieldKey | DateKey)[] = ['previousBalance', 'payments', 'purchases', 'fees', 'interest', 'newBalance', 'minimumPayment', 'statementBalance', 'closingDate', 'dueDate'];
-  const missing = required.filter(k => s[k] === null).map(k => (k in FIELD_LABELS ? FIELD_LABELS[k as FieldKey] : DATE_LABELS[k as DateKey]));
+  // "Payment Not Required" in place of the due date is a found value, not a missing one
+  const missing = required.filter(k => s[k] === null && !(k === 'dueDate' && s.noPayment)).map(k => (k in FIELD_LABELS ? FIELD_LABELS[k as FieldKey] : DATE_LABELS[k as DateKey]));
   const { previousBalance: p, payments: pay, purchases: buy, fees, interest, newBalance, statementBalance } = s;
   const problems: string[] = [];
   if (newBalance !== null && newBalance > 0 && statementBalance !== null && (statementBalance < 0 || statementBalance > newBalance)) {
@@ -424,6 +430,15 @@ export function parseStatement(fileName: string, text: string): Statement {
   }
   const dateHits = { closingDate: issuer.dates.closingDate(ctx), dueDate: issuer.dates.dueDate(ctx) };
   const dates = { closingDate: dateHits.closingDate?.iso ?? null, dueDate: dateHits.dueDate?.iso ?? null };
+  // no due date, the statement says no payment is required and the minimum is $0.00: nothing to pay, not a parsing error
+  let noPayment = false;
+  if (!dates.dueDate && issuer.noPayment && values.minimumPayment === 0) {
+    const line = ctx.lines.findIndex(l => issuer.noPayment?.test(l));
+    if (line >= 0) {
+      noPayment = true;
+      dateHits.dueDate = { iso: null, text: ctx.lines[line], line: line + 1, note: 'Payment Not Required' };
+    }
+  }
   return {
     fileName,
     issuer: issuer.id,
@@ -431,9 +446,10 @@ export function parseStatement(fileName: string, text: string): Statement {
     card: issuer.card(text),
     last4: issuer.last4(text),
     ...dates,
+    noPayment,
     ...values,
     hits,
     dateHits,
-    verification: verify({ ...values, ...dates }),
+    verification: verify({ ...values, ...dates, noPayment }),
   };
 }

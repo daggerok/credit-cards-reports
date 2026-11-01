@@ -67,14 +67,17 @@ describe('reminders and the upcoming list', () => {
       { ...chase, fileName: 'later', dueDate: '2026-11-20' },
       { ...chase, fileName: 'soon', dueDate: '2026-10-20' },
       { ...chase, fileName: 'none', dueDate: null },
+      { ...chase, fileName: 'nothing-to-pay', dueDate: null, noPayment: true },
     ];
-    expect(upcoming(list, '2026-10-18').map(s => s.fileName)).toEqual(['none', 'soon', 'later', 'past']);
+    expect(upcoming(list, '2026-10-18').map(s => s.fileName)).toEqual(['none', 'soon', 'later', 'past', 'nothing-to-pay']);
   });
 
   test('why a statement gets no reminder: the due date or the amount not found', () => {
     expect(reminderMissing(chase, 'balance')).toEqual([]);
     expect(reminderMissing({ ...chase, statementBalance: 0 }, 'balance')).toEqual([]);
     expect(reminderMissing({ ...chase, dueDate: null }, 'balance')).toEqual(['Payment Due Date']);
+    expect(reminderMissing({ ...chase, dueDate: null, noPayment: true, statementBalance: 0, minimumPayment: 0 }, 'balance')).toEqual([]);
+    expect(scenarios({ ...chase, dueDate: null, noPayment: true, statementBalance: 0, minimumPayment: 0 }).lateFee).toBe('Платеж не требуется (в выписке Payment Not Required), Late Fee не грозит.');
     expect(reminderMissing({ ...chase, statementBalance: null }, 'balance')).toEqual(['Statement Balance']);
     expect(reminderMissing({ ...chase, statementBalance: null }, 'minimum')).toEqual([]);
     expect(reminderMissing({ ...chase, statementBalance: null, minimumPayment: null, dueDate: null }, 'minimum')).toEqual(['Payment Due Date', 'Statement Balance']);
@@ -92,5 +95,6 @@ describe('reminders and the upcoming list', () => {
     expect(dueTotal(list, 'minimumPayment', today)).toEqual({ cents: 4000, unknown: 1 });
     expect(dueTotal(list.slice(0, 1), 'minimumPayment', today)).toEqual({ cents: 4000, unknown: 0 });
     expect(dueTotal([{ ...chase, dueDate: null, statementBalance: -100 }], 'statementBalance', today)).toEqual({ cents: 0, unknown: 0 });
+    expect(dueTotal([{ ...chase, dueDate: null, noPayment: true, statementBalance: 0 }], 'statementBalance', today)).toEqual({ cents: 0, unknown: 0 });
   });
 });
