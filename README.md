@@ -18,7 +18,7 @@ Live: https://daggerok.github.io/credit-cards-reports/
   - **Parsed raw data & math check**: every field, the parts it sums and the line each one came from, and the check (open by default when it fails)
 - **Remind to pay**: the amount in the reminders, the statement balance (no interest) or the minimum (no Late Fee)
 - **Add all payments to calendar**: one `.ics` with every upcoming payment (due dates already past are left out; statements whose due date or amount was not found are left out and counted in the status line)
-- Nothing leaves the browser and nothing is stored: the files are gone after a reload; only the theme, the main tab and the reminder amount are kept in localStorage
+- Nothing leaves the browser: the loaded files stay in localStorage of this site (the name and the text lines of each PDF, parsed again on the next visit, so a parser fix applies to them too) until **Clear**; the theme, the main tab and the reminder amount are kept the same way. A PDF that could not be read is not kept. When the storage is full or off the status line says so and the files live until the reload
 
 ## Math verification
 
@@ -49,6 +49,7 @@ A new issuer or layout: `bun scripts/extract-text.ts statement.pdf --out stateme
 The repo is public. A statement or a card number never gets into a commit or the site:
 
 - `*.pdf` and `statements/` are ignored: keep your PDFs, their extracted text and screenshots in `statements/`; tests use made-up text in `src/fixtures.ts`
+- The site keeps the text of the loaded statements in the localStorage of your browser only (this device, this site): **Clear** or clearing the site data removes it; do not load statements on a shared computer
 - `bun run check`: exit 1 while any file git would commit is a PDF or holds a card-number-like value (4 groups of digits or 15-16 digits, Luhn-valid); `check-history` does the same over every commit, `check-dist` over the built site
 - git hooks in `.githooks/` (set by `bun install` through `prepare`): `pre-commit` refuses a staged PDF or card number, `pre-push` re-checks the tree and the history; both fail closed without bun. Build, serve and `bun test` stop when the hooks are off (`check-hooks`); CI runs `check` and `check-history` before the tests and the build
 
@@ -67,6 +68,7 @@ Layout (same shape as fidelity-reports):
 - `src/index.html`, `src/index.css`, `src/main.tsx`, `src/favicon.ico`: the page, React and Tailwind 4 in the fidelity-reports look (Input / Output tabs, file loading, drop on the page)
 - `src/parser.ts`: the issuers and the engine, pure; `src/report.ts`: scenarios and the upcoming list; `src/calendar.ts`: `.ics` and the Google and Outlook links
 - `src/pdf.ts`: pdf.js in the browser, imported lazily by `main.tsx` with the first file (its own Parcel bundle, so the page loads about 266 kB of script instead of 724 kB); every file is read in one shared pdf.js worker, at most 3 at a time (`src/limit.ts`); `scripts/copy-worker.ts` copies the prebuilt pdf.js worker into `dist/` (bundled by Parcel it breaks)
+- `src/store.ts`: the loaded files kept over a reload (name and text, checked field by field when read back)
 - `scripts/check-private.ts`: the guard; `scripts/extract-text.ts`: the text of a PDF for writing a parser
 
 ## License
