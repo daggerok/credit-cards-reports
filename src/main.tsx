@@ -9,28 +9,31 @@
 //   A report: the two scenarios (minimum by the due date = no Late Fee, statement balance = no interest),
 //   calendar reminders 3 days and 1 day before the due date, and the parsed raw data with the balance check
 //   (Previous - Payments & Credits + Purchases & Charges + Fees + Interest = New Balance, to the cent)
-// Same page as fidelity-reports (Stocks look, Tailwind 4, Input / Output tabs, the same file loading and
-// localStorage for the view only); nothing is uploaded, the files are kept only until the page is reloaded.
+// Same page as fidelity-reports (Stocks look, Tailwind 4, Input / Output tabs, the same file loading); nothing
+// is uploaded. Unlike fidelity-reports the loaded files stay over a reload: the name and the text of each one
+// are kept in localStorage of this browser (src/store.ts) and parsed again on the next visit; Clear forgets them.
 // =========================================================================
 import { StrictMode, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { addDays, buildIcs, googleUrl, outlookUrl, reminderFor, REMIND_DAYS_BEFORE } from './calendar';
 import { DATE_LABELS, FIELD_LABELS, parseStatement, UnknownIssuerError, type DateKey, type FieldKey, type Statement } from './parser';
 import { cardLabel, daysBetween, dueTotal, formatDate, formatMoney, isAhead, reminderMissing, scenarios, todayIso, upcoming, type RemindAmount } from './report';
+import { fromSaved, toSaved } from './store';
 
-// ---- 1. Storage (the view only, like fidelity-reports) -------------------------------------------------
+// ---- 1. Storage (the view, like fidelity-reports, and the files read) ----------------------------------
 
 const PREFIX = 'credit-cards-reports';
 const THEME_KEY = `${PREFIX}-theme`;
 const VIEW_KEY = `${PREFIX}-view`;
+const FILES_KEY = `${PREFIX}-files`;
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 
 function lsGet(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
 }
 
-function lsSet(key: string, value: string): void {
-  try { localStorage.setItem(key, value); } catch { /* quota or private mode */ }
+function lsSet(key: string, value: string): boolean {
+  try { localStorage.setItem(key, value); return true; } catch { return false; /* quota or private mode */ }
 }
 
 function lsJson(key: string, fallback: any): any {
@@ -45,19 +48,35 @@ const STATUS_TEXT = { VALIDATED: 'VALIDATED', UNVERIFIED: 'PARSING ERROR / UNVER
 
 // ---- 2. Reading a file -------------------------------------------------------------------------------
 
+function errorEntry(name: string, text: string, e: unknown): Entry {
+  const message = e instanceof UnknownIssuerError ? e.message
+    : (e as { name?: string })?.name === 'PasswordException' ? 'The PDF is password protected: save it without a password and load it again'
+    : `Could not read the PDF: ${e instanceof Error ? e.message : String(e)}`;
+  return { name, status: 'error', text, error: message };
+}
+
+/** The text of a file (just read, or kept from the last visit) -> its entry. */
+function parseEntry(name: string, text: string): Entry {
+  try {
+    return { name, status: 'done', text, statement: parseStatement(name, text) };
+  } catch (e) {
+    return errorEntry(name, text, e);
+  }
+}
+
 async function readEntry(file: File): Promise<Entry> {
-  let text = '';
   try {
     // pdf.js (~700 kB) loads with the first file, not with the page
     const { pdfText } = await import('./pdf');
-    text = await pdfText(file);
-    return { name: file.name, status: 'done', text, statement: parseStatement(file.name, text) };
+    return parseEntry(file.name, await pdfText(file));
   } catch (e) {
-    const message = e instanceof UnknownIssuerError ? e.message
-      : (e as { name?: string })?.name === 'PasswordException' ? 'The PDF is password protected: save it without a password and load it again'
-      : `Could not read the PDF: ${e instanceof Error ? e.message : String(e)}`;
-    return { name: file.name, status: 'error', text, error: message };
+    return errorEntry(file.name, '', e);
   }
+}
+
+/** The files of the last visit, parsed again (so a parser fix applies to them too). */
+function restoreEntries(): Entry[] {
+  return fromSaved(lsJson(FILES_KEY, [])).map(f => parseEntry(f.name, f.text));
 }
 
 function download(name: string, text: string, type: string): void {
@@ -382,13 +401,13 @@ function EmptyState({ onLoad }: { onLoad: () => void }) {
 
 function App() {
   const saved = lsJson(VIEW_KEY, {});
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [entries, setEntries] = useState<Entry[]>(restoreEntries);
   const [mainTab, setMainTab] = useState<MainTab>(saved.mainTab === 'input' ? 'input' : 'output');
   const [remind, setRemind] = useState<RemindAmount>(saved.remind === 'minimum' ? 'minimum' : 'balance');
   const [inputFile, setInputFile] = useState('');
   const [outputSheet, setOutputSheet] = useState(ALL);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState(() => (entries.length ? `${entries.length} file${entries.length === 1 ? '' : 's'} from the last visit` : ''));
   const [dragging, setDragging] = useState(false);
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const fileInput = useRef<HTMLInputElement>(null);
@@ -397,6 +416,11 @@ function App() {
   const today = todayIso();
 
   useEffect(() => { lsSet(VIEW_KEY, JSON.stringify({ mainTab, remind })); }, [mainTab, remind]);
+  // the files read are kept for the next visit (not while one is still being read: a partial list would replace the full one)
+  useEffect(() => {
+    if (entries.some(e => e.status === 'parsing')) return;
+    if (!lsSet(FILES_KEY, JSON.stringify(toSaved(entries)))) setStatus('The files could not be kept for the next visit: the browser storage is full or off');
+  }, [entries]);
 
   const sorted = useMemo(() => [...entries].sort((a, b) => collator.compare(a.name, b.name)), [entries]);
   const statements = sorted.flatMap(e => (e.statement ? [e.statement] : []));
@@ -564,8 +588,8 @@ function App() {
 
               <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto lg:ml-auto justify-end shrink-0">
                 <input ref={fileInput} type="file" accept=".pdf,application/pdf" multiple hidden onChange={e => { if (e.target.files?.length) void loadFiles(e.target.files); e.target.value = ''; }} />
-                <button type="button" onClick={() => fileInput.current?.click()} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition active:scale-95" title="Load credit card statements (PDF), or drop them on the page; more loads add files">Load files</button>
-                <button type="button" disabled={!entries.length} onClick={() => { setEntries([]); setStatus('Files cleared'); }} className={BTN_SLATE} title="Forget the loaded files">Clear</button>
+                <button type="button" onClick={() => fileInput.current?.click()} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition active:scale-95" title="Load credit card statements (PDF), or drop them on the page; more loads add files, the files stay in this browser until Clear">Load files</button>
+                <button type="button" disabled={!entries.length} onClick={() => { setEntries([]); setStatus('Files cleared'); }} className={BTN_SLATE} title="Forget the loaded files (until then they stay in this browser over a reload)">Clear</button>
                 <button type="button" disabled={!upcomingReminders} onClick={addAllToCalendar}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-emerald-600"
                   title={`One .ics file with every upcoming payment: an all-day event on each Payment Due Date with alarms 3 days and 1 day before${leftOutText ? ` (${leftOutText})` : ''}`}>
