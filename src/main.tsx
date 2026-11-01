@@ -202,7 +202,7 @@ function RawData({ s }: { s: Statement }) {
                 return (
                   <tr key={key}>
                     <td className="py-1.5 pr-3 whitespace-nowrap font-medium">{DATE_LABELS[key]}</td>
-                    <td className={`py-1.5 pr-3 text-right tabular-nums whitespace-nowrap ${s[key] ? '' : 'text-rose-600 dark:text-rose-400'}`}>{s[key] ? formatDate(s[key]) : 'not found'}</td>
+                    <td className={`py-1.5 pr-3 text-right tabular-nums whitespace-nowrap ${s[key] || hit?.note ? '' : 'text-rose-600 dark:text-rose-400'}`}>{s[key] ? formatDate(s[key]) : hit?.note ?? 'not found'}</td>
                     <td className="py-1.5">{hit ? source(hit.line, hit.text) : null}</td>
                   </tr>
                 );
@@ -265,7 +265,7 @@ function ReportCard({ entry, remind, today }: { entry: Entry; remind: RemindAmou
       </header>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         <Fact label="Statement Closing Date" value={s.closingDate ? formatDate(s.closingDate) : null} />
-        <Fact label="Payment Due Date" value={s.dueDate ? formatDate(s.dueDate) : null} sub={daysText(s.dueDate, today)} strong />
+        <Fact label="Payment Due Date" value={s.dueDate ? formatDate(s.dueDate) : s.noPayment ? 'Not required' : null} sub={s.noPayment ? 'Payment Not Required on the statement' : daysText(s.dueDate, today)} strong />
         <Fact label="Statement Balance" value={s.statementBalance === null ? null : formatMoney(s.statementBalance)} strong />
         <Fact label="Minimum Payment Due" value={s.minimumPayment === null ? null : formatMoney(s.minimumPayment)} />
       </div>
@@ -274,7 +274,7 @@ function ReportCard({ entry, remind, today }: { entry: Entry; remind: RemindAmou
         <section className="rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2.5">
           <div className="text-[11px] uppercase tracking-wider font-semibold text-amber-700 dark:text-amber-300">Сценарий 1 · избежать Late Fee</div>
           <div className="text-sm text-slate-800 dark:text-slate-100 mt-1">{sc.lateFee}</div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Payment Due Date {formatDate(s.dueDate)} · Minimum Payment Due {formatMoney(s.minimumPayment)}</div>
+          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">Payment Due Date {s.noPayment ? 'not required' : formatDate(s.dueDate)} · Minimum Payment Due {formatMoney(s.minimumPayment)}</div>
         </section>
         <section className="rounded-lg border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-3 py-2.5">
           <div className="text-[11px] uppercase tracking-wider font-semibold text-blue-700 dark:text-blue-300">Сценарий 2 · избежать Interest Charges</div>
@@ -317,10 +317,11 @@ function Upcoming({ statements, today, onPick }: { statements: Statement[]; toda
               const past = !!s.dueDate && s.dueDate < today;
               const soon = isAhead(s, today) && daysBetween(today, s.dueDate as string) <= 3;
               return (
-                <tr key={s.fileName} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer ${past ? 'opacity-55' : ''}`} onClick={() => onPick(s.fileName)} title="Open this report">
+                <tr key={s.fileName} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer ${past || s.noPayment ? 'opacity-55' : ''}`} onClick={() => onPick(s.fileName)} title="Open this report">
                   <td className="py-2 pr-4 tabular-nums font-semibold">{s.dueDate ? formatDate(s.dueDate)
+                    : s.noPayment ? <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full border status-ok" title="The statement says Payment Not Required">✓ Payment not required</span>
                     : <span className="inline-flex items-center gap-1 whitespace-nowrap text-[11px] font-semibold tracking-wide px-2 py-0.5 rounded-full border status-bad" title="Look up the Payment Due Date in the statement">⚠ Due date not found</span>}</td>
-                  <td className={`py-2 pr-4 ${soon || !s.dueDate ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{s.dueDate ? daysText(s.dueDate, today) : 'unknown'}{past ? ' (past)' : ''}</td>
+                  <td className={`py-2 pr-4 ${soon || (!s.dueDate && !s.noPayment) ? 'text-rose-600 dark:text-rose-400 font-semibold' : 'text-slate-500 dark:text-slate-400'}`}>{s.dueDate ? daysText(s.dueDate, today) : s.noPayment ? 'nothing to pay' : 'unknown'}{past ? ' (past)' : ''}</td>
                   <td className="py-2 pr-4 font-medium text-slate-900 dark:text-white">{cardLabel(s)}</td>
                   <td className="py-2 pr-4 text-right tabular-nums">{amount(s.statementBalance)}</td>
                   <td className="py-2 pr-4 text-right tabular-nums">{amount(s.minimumPayment)}</td>
@@ -509,7 +510,7 @@ function App() {
 
   const validated = statements.filter(s => s.verification.status === 'VALIDATED').length;
   const next = upcoming(statements, today).find(s => isAhead(s, today));
-  const undated = statements.filter(s => !s.dueDate).length;
+  const undated = statements.filter(s => !s.dueDate && !s.noPayment).length;
   const subtitle = entries.length
     ? `${statements.length} statement${statements.length === 1 ? '' : 's'}, ${validated} validated${next ? ` · next due ${formatDate(next.dueDate)} (${cardLabel(next)})` : ''}${undated ? ` · ⚠ ${undated} without a due date` : ''}${reading ? ' · reading…' : ''}`
     : 'Credit card statements (PDF) read in the browser, no AI';

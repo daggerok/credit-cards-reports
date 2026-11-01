@@ -11,6 +11,8 @@ describe('parseMoney', () => {
     expect(parseMoney('+ $0.00')).toBe(0);
     expect(parseMoney('+$120.46')).toBe(12046);
     expect(parseMoney('($5.00)')).toBe(-500);
+    expect(parseMoney('CR$2.85')).toBe(-285);
+    expect(parseMoney('$2.85 CR')).toBe(-285);
     expect(parseMoney('$12')).toBeNull();
   });
 });
@@ -26,7 +28,7 @@ describe('parseDate', () => {
   });
 });
 
-type Expected = { issuer: IssuerId; bank: string; card: string; last4: string; closing: string; due: string; values: number[] };
+type Expected = { issuer: IssuerId; bank: string; card: string; last4: string; closing: string; due: string | null; values: number[] };
 
 // values: previous, payments, purchases, fees, interest, new balance, minimum, statement balance (cents)
 const EXPECTED: Record<keyof typeof FIXTURES, Expected> = {
@@ -37,6 +39,7 @@ const EXPECTED: Record<keyof typeof FIXTURES, Expected> = {
   bofaDateBelow: { issuer: 'bofa', bank: 'Bank of America', card: 'Visa Signature', last4: '3333', closing: '2026-06-19', due: '2026-07-16', values: [-200, 3000, 4200, 0, 0, 1000, 1000, 1000] },
   bofaPeriodOnly: { issuer: 'bofa', bank: 'Bank of America', card: 'Visa Signature', last4: '3333', closing: '2026-06-19', due: '2026-07-16', values: [-200, 3000, 4200, 0, 0, 1000, 1000, 1000] },
   amex: { issuer: 'amex', bank: 'American Express', card: 'Blue Cash Everyday', last4: '4444', closing: '2026-05-07', due: '2026-06-01', values: [0, 50000, 51500, 0, 0, 1500, 1500, 1500] },
+  amexCredit: { issuer: 'amex', bank: 'American Express', card: 'Blue Cash Everyday', last4: '5555', closing: '2026-09-06', due: null, values: [-710, 0, 710, 0, 0, 0, 0, 0] },
   apple: { issuer: 'apple', bank: 'Apple', card: 'Apple Card', last4: '', closing: '2026-02-28', due: '2026-03-31', values: [10000, 20000, 100000, 0, 0, 90000, 2500, 90000] },
 };
 
@@ -110,6 +113,18 @@ describe('math verification', () => {
     expect(s.verification.status).toBe('UNVERIFIED');
     expect(s.verification.missing).toEqual(['Purchases & Charges']);
     expect(s.hits.purchases[0]).toMatchObject({ part: 'New Charges', cents: null, note: 'not found' });
+  });
+
+  test('Amex "Payment Not Required" with a $0.00 minimum: no due date, nothing to pay, VALIDATED', () => {
+    const s = parseStatement('amex.pdf', FIXTURES.amexCredit);
+    expect(s.noPayment).toBe(true);
+    expect(s.dateHits.dueDate).toMatchObject({ iso: null, line: 6, note: 'Payment Not Required' });
+    expect(s.verification.status).toBe('VALIDATED');
+    expect(parseStatement('amex.pdf', FIXTURES.amex).noPayment).toBe(false);
+    // the words alone are not enough: with a minimum above $0.00 the due date is still missing
+    const odd = parseStatement('amex.pdf', FIXTURES.amexCredit.replace(/Minimum Payment Due  \$0\.00/g, 'Minimum Payment Due  $15.00'));
+    expect(odd.noPayment).toBe(false);
+    expect(odd.verification).toMatchObject({ status: 'UNVERIFIED', missing: ['Payment Due Date'] });
   });
 
   test('a missing due date makes the statement unverified even when the math holds', () => {

@@ -138,6 +138,21 @@ $40.00 and your APRs may be increased to the Penalty APR of 29.99%.  Fees  +$0.0
 Interest Charged  +$0.00
 New Balance  $15.00`,
 
+  // a credit balance: Amex prints CR$ for the credit, refunds it as a New Charge and "Payment Not Required" instead of a due date
+  amexCredit: `Blue Cash Everyday® from American Express  p. 1/4
+Closing Date 09/06/26  TTY:  Use Relay 711
+Account Ending 0-05555  Website:  americanexpress.com
+New Balance  $0.00  purchases when you use the
+Minimum Payment Due  $0.00  Card.
+Payment Not Required  Account Summary
+Previous Balance  CR$7.10
+Payments/Credits  -$0.00
+New Charges  +$7.10
+See page 2 for important information about your account.  Fees  +$0.00
+Interest Charged  +$0.00
+New Balance  $0.00
+Minimum Payment Due  $0.00`,
+
   apple: `Statement
 Apple Card Co-Owners
 Feb 1 — Feb 28, 2026
